@@ -1,6 +1,8 @@
 # OCELOT Cell Detection Leveraging Tissue Segmentation
 This repository contains code that can be used to train and evaluate models that were submitted for the [OCELOT Grand Challenge](https://ocelot2023.grand-challenge.org/ocelot2023/)
 
+![](./img/algorithm.jpg)
+
 This also includes files provided by the [OCELOT Grand Challenge](https://github.com/lunit-io/ocelot23algo) for:
 * Testing, Building, and Exporting the Docker image
 * Running evaluation on generated predictions
