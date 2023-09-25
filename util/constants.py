@@ -12,7 +12,13 @@ GC_DETECTION_OUTPUT_PATH = Path("/output/cell_classification.json")
 # Sample dimensions
 SAMPLE_SHAPE = (1024, 1024, 3)
 
-# Dataloading/Model Training keys
+# Tissue classes to predict
+TISSUE_CLASSES = ['Background', 'Cancer', 'Other']
+TISSUE_CLASS_COLOURS = [(0, 0, 0), (255, 0, 0), (0, 0, 255)]
+CELL_CLASSES = ['Background', 'Background_Cell', 'Tumour_Cell']
+CELL_CLASS_COLOURS = [(0, 0, 0), (255, 255, 0), (0, 0, 255)]
+
+# Dataloading/Model keys
 SEG_MASK_LOGITS = 'seg_mask_logits'     # Segmentation logits
 SEG_MASK_INT = 'seg_mask_int'           # Integer encoded segmentation mask
 SEG_MASK_PROB = 'seg_mask_prob'         # Softmaxed segmentation mask

@@ -10,8 +10,10 @@ dependencies:
   - python=3.9.13
   - pytorch::pytorch=1.11.0=py3.9_cuda11.5_cudnn8.3.2_0
   - pytorch::torchvision=0.12.0=py39_cu115
+  - rasterio=1.3.2
   - scipy=1.8.1
   - tomlkit=0.11.4
+  - tqdm==4.38.0
   - pip:
     - opencv-python-headless==4.8.0.76
     - git+https://github.com/anibali/segformer.git@318fa40ea69fd975213805e12ef3fc670072d1d6    # Segformer

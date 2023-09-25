@@ -1,11 +1,156 @@
-from typing import Tuple, Optional, Dict, Any, Sequence, Union, List
+import os
+from typing import Tuple, Optional, Sequence, Union, List
 
-import cv2
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from util import macenko
+
+# ##################################################################################################
+#                                       File Helper Functions
+# ##################################################################################################
+def get_basename_from_filepath(filepath: str) -> str:
+    """Extracts the basename of a file from the filepath.
+
+    Args:
+        filepath: File path.
+
+    Returns:
+        Basename of the file, excluding the file extension.
+    """
+    return os.path.splitext(os.path.basename(filepath))[0]
+
+
+def get_extension_from_filepath(filepath: str) -> str:
+    """Extracts the extension of a file from the filepath.
+
+    Args:
+        filepath: File path.
+
+    Returns:
+        Extension of the file, or an empty string if there is no extension.
+    """
+    return os.path.splitext(filepath)[1]
+
+
+def create_directory(directory: str):
+    """Creates a new directory, regardless of whether it exists or not.
+
+    Directories will be created recursively.
+
+    If `directory` is an empty string, or the directory already exists, this function is a no-op.
+
+    Args:
+        directory: Directory to create.
+    """
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+
+
+def get_nested_directory_level(base_directory: str, nested_directory: str) -> int:
+    """Gets the nested level of a directory relative to a base directory.
+
+    The nested level is 0 if the directories are identical, otherwise is the number of
+    subdirectories that nested_directory is relative to base_directory.
+
+    Args:
+        base_directory: Path to the base directory
+        nested_directory: Path to the nested directory
+
+    Returns:
+        The nested directory level of the nested directory relative to the base directory.
+
+    Examples:
+        >>> get_nested_directory_level('/home/john', '/home/john/.config/myconf.yml')
+        2
+    """
+    base_directory = os.path.normpath(base_directory)
+    nested_directory = os.path.normpath(nested_directory)
+
+    if not nested_directory.startswith(base_directory):
+        raise OSError(f'Nested directory: \'{nested_directory}\' is not located within base '
+                      f'directory: \'{base_directory}\'')
+
+    # Remove the base directory part from the nested directory, then count the number of separators
+    difference = nested_directory[len(base_directory):]
+    return difference.count(os.sep)
+
+
+def get_recursive_directory_listing(
+    directory: str,
+    search_depth: int = -1,
+    extension_whitelist: Optional[Union[str, Sequence[str]]] = None,
+    filename_start_filter: Optional[str] = None,
+) -> List[str]:
+    """Recursively scans a directory and returns a list of all files found.
+
+    Can also optionally blacklist or whitelist file extensions.
+
+    Args:
+        directory: Directory to search.
+        search_depth: How deep directories should be searched. A search_depth of ``0`` only
+            searches the current directory. A search_depth of ``-1`` searches all directories.
+        extension_whitelist: A list of extensions to include.
+        filename_start_filter: If specified, only files starting with this substring will
+            be returned.
+
+    Returns:
+        List of all matching files.
+    """
+    # Set up the whitelist
+    if extension_whitelist is not None:
+        if not isinstance(extension_whitelist, (list, tuple)):
+            extension_whitelist = [extension_whitelist]
+    else:
+        extension_whitelist = []
+
+    # Handle a search depth of 0 (simple os.listdir())
+    if search_depth == 0:
+        if filename_start_filter is None:
+            file_list = [os.path.join(directory, file) for file in os.listdir(directory)]
+        else:
+            file_list = [os.path.join(directory, file) for file in os.listdir(directory)
+                         if file.startswith(filename_start_filter)]
+        file_list = [file for file in file_list if not os.path.islink(file)]
+        if extension_whitelist:
+            file_list = [file for file in file_list
+                         if get_extension_from_filepath(file) in extension_whitelist]
+        return file_list
+
+    # Track the number of files processed and matching files found so far
+    file_list = []
+
+    # Iterate through from the starting directory
+    for dirpath, dirnames, filenames in os.walk(directory):
+        # Ensure we don't search too deep
+        if search_depth >= 0:
+            directory_depth = get_nested_directory_level(directory, dirpath)
+            if directory_depth > search_depth:
+                continue
+
+        # Iterate through files in the current directory. Track them if they match the filters
+        for f in filenames:
+            # Skip if filtering on filename_start
+            if filename_start_filter is not None and not f.startswith(filename_start_filter):
+                continue
+
+            fp = os.path.join(dirpath, f)
+
+            # Skip if a symbolic link
+            if not os.path.islink(fp):
+                # Skip if the extension is blacklisted, or isn't on the whitelist
+                valid_file = True
+                if extension_whitelist and get_extension_from_filepath(fp) not in extension_whitelist:
+                    valid_file = False
+                if valid_file:
+                    file_list.append(fp)
+    return file_list
+
+
+def to_relpath(path, rel_to):
+    path = os.path.relpath(path, rel_to)
+    path = path.replace(os.sep, '/')
+    return path
 
 
 # ##################################################################################################
@@ -209,207 +354,3 @@ def scale_coords_to_mpp(
     if as_int:
         scaled_coords = scaled_coords.astype(np.int32)
     return scaled_coords
-
-
-# ##################################################################################################
-#                                       Image Helpers
-# ##################################################################################################
-def get_tissue_mask(
-        image: NDArray[np.uint8],
-        luminosity_threshold: float = 0.8,
-        mask_out_black: bool = False,
-) -> NDArray[bool]:
-    """Computes a foreground tissue mask.
-
-    This is done by converting the image to the LAB colour space, then thresholding the L
-    (luminosity) channel.
-
-    Args:
-        image: Image to compute foreground mask of.
-        luminosity_threshold: The luminosity threshold [0, 1] to mask pixels in/out. Values < this
-            threshold are retained.
-        mask_out_black: Whether pure black pixels should also be masked out
-
-    Returns:
-        The boolean mask.
-    """
-    lab_image = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
-    if not mask_out_black:
-        return lab_image[..., 0] < (luminosity_threshold * 255)
-    return np.logical_and(lab_image[..., 0] < (luminosity_threshold * 255), lab_image[..., 0] > 0)
-
-
-def crop_image(image: NDArray, box: Union[Tuple[int, int, int, int], List[int]],
-               allow_pad: bool = False, pad_fill_value: int = 0) -> NDArray:
-    """Crops an image given a bounding box region
-
-    The box should be in the form (x1, y1, x2, y2), as the top-left and bottom-right coordinates
-
-    Assumes image stored in HWC format (or HW if a grayscale image)
-
-    Args:
-        image: Image to be cropped
-        box: Bounding box coordinates of region to crop
-        allow_pad: Whether padding is allowed (applied if the box has negative coordinates, or
-            coordinates beyond the image dimensions).
-        pad_fill_value: If padding applied, the pad colour.
-
-    Returns:
-        The cropped image.
-    """
-    # If padding not allowed, crop directly from the image
-    if not allow_pad:
-        return image[int(box[1]):int(box[3]), int(box[0]):int(box[2]), ...]
-
-    # Convert box to numpy array (makes a copy to not modify original box)
-    box = np.array(box)
-
-    # Get the size of the crop to take
-    crop_size = get_region_dimensions(box)
-
-    # H, W, C
-    if image.ndim == 2:
-        image_data = np.full((crop_size[1], crop_size[0]), fill_value=pad_fill_value,
-                             dtype=image.dtype)
-    else:
-        image_data = np.full((crop_size[1], crop_size[0], image.shape[2]),
-                             fill_value=pad_fill_value,
-                             dtype=image.dtype)
-
-    # Get the region where data should be loaded into
-    cx1, cy1, cx2, cy2 = get_windowed_load_crop((image.shape[1], image.shape[0]), box)
-
-    # Bound box crop to image
-    box[[0, 2]] = np.clip(box[[0, 2]], a_min=0, a_max=image.shape[1])
-    box[[1, 3]] = np.clip(box[[1, 3]], a_min=0, a_max=image.shape[0])
-
-    # Load image data
-    image_data[cy1:cy2, cx1:cx2, ...] = image[box[1]:box[3], box[0]:box[2], ...]
-
-    return image_data
-
-
-# ##################################################################################################
-#                                       Macenko Normalisation
-# ##################################################################################################
-def precompute_macenko_params(image: NDArray[np.uint8]) -> Dict[str, Any]:
-    """Precomputes the Macenko normalisation parameters if required.
-
-    Normalisation will be computed on the image as-is (at it's given resolution).
-
-    Tissue masking will be applied
-    """
-    # Load the tissue mask
-    tissue_mask = get_tissue_mask(image)
-
-    # Mask the image
-    image = image[tissue_mask]
-
-    # Generate the Macenko parameters
-    macenko_params = macenko.precompute_imagewide_normalisation_parameters(image)
-
-    # Return the computed Macenko parameters
-    return macenko_params
-
-
-# ##################################################################################################
-#                                   Cell-Tissue Patch Functions
-# ##################################################################################################
-def get_wsi_mpp(meta_pair: Dict[str, Any]) -> Tuple[float, float]:
-    """Returns the MPP of the WSI. Returned in form: (X, Y)
-    """
-    return meta_pair['mpp_x'], meta_pair['mpp_y']
-
-
-def get_region_mpp(meta_pair: Dict[str, Any], annot_type: str) -> Tuple[float, float]:
-    """Returns the MPP of the cell/tissue patch. Returned in form: (X, Y).
-    """
-    if annot_type not in {'cell', 'tissue'}:
-        raise ValueError(f'Must specify cell/tissue. {annot_type} invalid.')
-    return meta_pair[annot_type]['resized_mpp_x'], meta_pair[annot_type]['resized_mpp_y']
-
-
-def get_region_wsi_coordinates(
-        meta_pair: Dict[str, Any], annot_type: str,
-        mpp: Optional[Union[float, Sequence[float]]] = None,
-) -> Tuple[int, int, int, int]:
-    """Gets the Cell/Tissue coordinates at a given MPP.
-
-    If MPP is None, returns at the WSI MPP.
-
-    Returned in form: x1, y1, x2, y2
-    """
-    if annot_type not in {'cell', 'tissue'}:
-        raise ValueError(f'Must specify cell/tissue. {annot_type} invalid.')
-
-    # Get the coordinates of the cell crop at the WSI MPP
-    x1, y1 = meta_pair[annot_type]['x_start'], meta_pair[annot_type]['y_start']
-    x2, y2 = meta_pair[annot_type]['x_end'], meta_pair[annot_type]['y_end']
-    if mpp is None:
-        return x1, y1, x2, y2
-
-    if isinstance(mpp, (int, float)):
-        mpp = (mpp, mpp)
-
-    # If scaling to other MPP, determine what MPP it is observed in (WSI MPP)
-    original_mpp = get_wsi_mpp(meta_pair)
-
-    # Scale coordinates to new MPP
-    original_width, original_height = x2 - x1, y2 - y1
-    x1 = convert_pixel_mpp(x1, original_mpp[0], mpp[0], round_int=True)
-    y1 = convert_pixel_mpp(y1, original_mpp[1], mpp[1], round_int=True)
-    width = convert_pixel_mpp(original_width, original_mpp[0], mpp[0], round_int=True)
-    height = convert_pixel_mpp(original_height, original_mpp[1], mpp[1], round_int=True)
-    x2 = x1 + width
-    y2 = y1 + height
-    return x1, y1, x2, y2
-
-
-def cell_scale_crop_in_tissue_at_cell_mpp(
-        meta_pair: Dict[str, Any],
-        tissue_mpp: Optional[Union[float, Tuple[float, float]]] = None,
-        cell_mpp: Optional[Union[float, Tuple[float, float]]] = None,
-) -> Tuple[Tuple[float, float], List[int]]:
-    """Gets the coordinates of the crop to take in the tissue region at the cell MPP.
-
-    tissue_mpp is the MPP that the tissue data exists in (used for scale information).
-
-    cell_mpp is the MPP the desired cell data should be at.
-
-    If either tissue_mpp or cell_mpp not given, uses what is stored in the file
-    """
-    # Get MPP of cell/tissue/WSI
-    if cell_mpp is None:
-        cell_mpp = get_region_mpp(meta_pair, 'cell')
-    else:
-        if isinstance(cell_mpp, (int, float)):
-            cell_mpp = (cell_mpp, cell_mpp)
-    if tissue_mpp is None:
-        tissue_mpp = get_region_mpp(meta_pair, 'tissue')
-    else:
-        if isinstance(tissue_mpp, (int, float)):
-            tissue_mpp = (tissue_mpp, tissue_mpp)
-    wsi_mpp = get_wsi_mpp(meta_pair)
-
-    # Determine the scaling between mask at tissue MPP vs. cell MPP (make larger)
-    scale_factor_x, scale_factor_y = tissue_mpp[0] / cell_mpp[0], tissue_mpp[1] / cell_mpp[1]
-
-    # Get the coordinates of the tissue area at the WSI MPP
-    tissue_wsi_coords = get_region_wsi_coordinates(meta_pair, annot_type='tissue', mpp=None)
-
-    # Get scale factor for WSI-MPP to cell MPP
-    wsi_cell_sf_x, wsi_cell_sf_y = wsi_mpp[0] / cell_mpp[0], wsi_mpp[1] / cell_mpp[1]
-
-    # Scale tissue x1, y1 from WSI MPP to cell MPP
-    tissue_cell_x1, tissue_cell_y1 = tissue_wsi_coords[0] * wsi_cell_sf_x, tissue_wsi_coords[1] * wsi_cell_sf_y
-
-    # Extract the coordinates of the cell box (at cell MPP)
-    cell_coords = get_region_wsi_coordinates(meta_pair, annot_type='cell', mpp=cell_mpp)
-
-    # Set the crop coordinates relative to tissue_cell_x1/y1
-    crop_coords = [int(round(cell_coords[0] - tissue_cell_x1)),
-                   int(round(cell_coords[1] - tissue_cell_y1)),
-                   int(round(cell_coords[2] - tissue_cell_x1)),
-                   int(round(cell_coords[3] - tissue_cell_y1))]
-
-    return (scale_factor_x, scale_factor_y), crop_coords

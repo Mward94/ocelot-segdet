@@ -20,9 +20,10 @@ from util.constants import (
     INPUT_IMAGE_KEY, INPUT_IMAGE_MASK_KEY, SEG_MASK_PROB, DET_POINTS_KEY, DET_INDICES_KEY,
     DET_SCORES_KEY)
 from util.helpers import (
-    get_default_device, get_region_mpp, precompute_macenko_params, calculate_cropped_size,
-    convert_dimensions_to_mpp, move_data_to_device, cell_scale_crop_in_tissue_at_cell_mpp,
-    crop_image, scale_coords_to_mpp)
+    get_default_device, calculate_cropped_size, convert_dimensions_to_mpp, move_data_to_device,
+    scale_coords_to_mpp)
+from util.image import precompute_macenko_params, crop_image
+from util.ocelot_parsing import get_region_mpp, cell_scale_crop_in_tissue_at_cell_mpp
 from util.tiling import generate_tiles
 
 # ### Constants ###
