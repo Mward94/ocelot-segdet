@@ -24,9 +24,6 @@ COPY --chown=user:user environment.yml /opt/environment.yml
 RUN mamba env update -n base -f /opt/environment.yml \
  && mamba clean -ya
 
-# Install albumentations separately (don't want unnecessary opencv-python-headless)
-RUN pip install albumentations==1.2.1 --no-binary qudida,albumentations
-
 # Copy files across.
 COPY --chown=user:user . /opt/app
 

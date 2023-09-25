@@ -13,6 +13,6 @@ dependencies:
   - scipy=1.8.1
   - tomlkit=0.11.4
   - pip:
-    - opencv-python==4.6.0.66
+    - opencv-python-headless==4.8.0.76
     - git+https://github.com/anibali/segformer.git@318fa40ea69fd975213805e12ef3fc670072d1d6    # Segformer
-#    - albumentations==1.2.1 --no-binary qudida,albumentations
+    - albumentations==1.2.1 --no-binary qudida,albumentations
