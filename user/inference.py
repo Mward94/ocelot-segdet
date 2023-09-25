@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, List, Callable, Dict, Any, Union, Iterable, Optional
+from typing import Tuple, List, Dict, Any, Union, Iterable, Optional
 
 import cv2
 import numpy as np
@@ -22,7 +22,7 @@ from util.constants import (
 from util.helpers import (
     get_default_device, get_region_mpp, precompute_macenko_params, calculate_cropped_size,
     convert_dimensions_to_mpp, move_data_to_device, cell_scale_crop_in_tissue_at_cell_mpp,
-    crop_image)
+    crop_image, scale_coords_to_mpp)
 from util.tiling import generate_tiles
 
 # ### Constants ###
@@ -32,8 +32,8 @@ TILE_SIZE = (512, 512)
 TISSUE_MASK_CANCER_AREA_IDX = 1     # Cancer area index for tissue segmentation mask
 
 # Model weights paths
-TISSUE_WEIGHTS_PATH = 'tissue_seg_sf_02_all_train_latest.pth'
-CELL_WEIGHTS_PATH = 'cell_det_sf_11_pred_seg_single_channel_mask_all_train_latest.pth'
+TISSUE_WEIGHTS_PATH = 'tissue_model_weights.pth'
+CELL_WEIGHTS_PATH = 'cell_model_weights.pth'
 
 # Tissue model configuration
 TISSUE_MODEL_BATCH_SIZE = 8

@@ -71,9 +71,9 @@ class SegFormer(nn.Module):
         output = self.model(input_images)
         assert output.shape[-2:] == input_images.shape[-2:]
 
-        # Apply output crop margin
-        margin = self.output_crop_margin
-        if margin > 0:
+        # Crop the output if a crop margin is specified
+        margin = self.train_output_crop_margin if self.training else self.eval_output_crop_margin
+        if margin is not None and margin > 0:
             height, width = calculate_cropped_size(output.shape[-2:], margin)
             output = F.crop(output, top=margin, left=margin, height=height, width=width)
 

@@ -1,5 +1,6 @@
 """Collection of functions related to tiling image data.
 """
+import numpy as np
 
 
 def generate_tiles(coordinates, tile_size, output_size):
