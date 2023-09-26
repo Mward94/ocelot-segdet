@@ -14,8 +14,8 @@ from torch.utils.data import Dataset
 
 from util import macenko
 from util.constants import INPUT_MASK_PROB_KEY, INPUT_IMAGE_MASK_KEY, INPUT_IMAGE_KEY
-from util.helpers import (
-    convert_dimensions_to_mpp, crop_image, get_tissue_mask, calculate_cropped_size)
+from util.helpers import convert_dimensions_to_mpp, calculate_cropped_size
+from util.image import crop_image, get_tissue_mask
 
 
 class ImageDataset(Dataset):
