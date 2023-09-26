@@ -86,6 +86,26 @@ def load_image(filepath: str) -> NDArray[np.uint8]:
     return cv2.cvtColor(cv2.imread(filepath), cv2.COLOR_BGR2RGB)
 
 
+def write_image(filepath: str, image: NDArray[np.uint8], overwrite: bool = False):
+    """Writes an image to file.
+
+    Args:
+        filepath: The filepath to write the data to.
+        image: The image data to write. Should be RGB, HWC axis ordering.
+        overwrite: Whether to overwrite the existing file if it exists.
+
+    Raises:
+        FileExistsError: If `filepath` exists and `overwrite` is False.
+    """
+    # Check if the file already exists
+    if not overwrite and os.path.isfile(filepath):
+        raise FileExistsError(f'File \'{filepath}\' already exists. Set the overwrite flag '
+                              f'to overwrite the file')
+
+    # Write the data
+    cv2.imwrite(filepath, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+
+
 def get_tissue_mask(
         image: NDArray[np.uint8],
         luminosity_threshold: float = 0.8,
@@ -179,3 +199,13 @@ def precompute_macenko_params(image: NDArray[np.uint8]) -> Dict[str, Any]:
 
     # Return the computed Macenko parameters
     return macenko_params
+
+
+def overlay_images(original, data_to_overlay, alpha, beta=None, gamma=0):
+    """Overlays an image ontop of another one
+
+    Inspiration: https://www.pyimagesearch.com/2016/03/07/transparent-overlays-with-opencv/
+    """
+    if beta is None:
+        beta = 1 - alpha
+    return cv2.addWeighted(data_to_overlay, alpha, original, beta, gamma)

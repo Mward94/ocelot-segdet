@@ -7,19 +7,24 @@ As part of preprocessing, this will:
 * Store pickle files per-case that contain metadata about the images
 """
 import argparse
+import csv
 import os
-from typing import List, Dict, Any
+from typing import List, Dict
 
 import numpy as np
 from rasterio.enums import Resampling
 from tqdm import tqdm
 
 from util import macenko
+from util.constants import TISSUE_CLASS_COLOURS, CELL_CLASS_COLOURS, CELL_CLASSES
 from util.gcio import read_json
 from util.helpers import (
-    get_basename_from_filepath, get_recursive_directory_listing, create_directory, to_relpath)
-from util.image import write_tif_rasterio, load_image, get_tissue_mask, DEFAULT_TIF_PROFILE
-from util.ocelot_parsing import get_region_mpp, TISSUE_LABEL_MAP
+    get_basename_from_filepath, get_recursive_directory_listing, create_directory, to_relpath,
+    draw_points_on_image, write_pickle_data)
+from util.image import (
+    write_tif_rasterio, load_image, get_tissue_mask, DEFAULT_TIF_PROFILE, write_image,
+    overlay_images)
+from util.ocelot_parsing import get_region_mpp, TISSUE_LABEL_MAP, CELL_LABEL_MAP
 
 TIF_PYRAMID_FACTORS = [2, 4, 8]
 
@@ -73,6 +78,7 @@ def main():
     create_directory(image_directory)
     create_directory(tissue_seg_directory)
     create_directory(cell_det_directory)
+    create_directory(metadata_directory)
     if args.extract_overlays:
         create_directory(overlays_directory)
 
@@ -91,7 +97,7 @@ def main():
         tissue_image_path = os.path.join(image_directory, f'{im_id}_tissue.tif')
         tissue_gt_path = os.path.join(tissue_seg_directory, f'{im_id}.tif')
         cell_image_path = os.path.join(image_directory, f'{im_id}_cell.tif')
-        cell_gt_path = os.path.join(cell_det_directory, f'{im_id}.npy')
+        metadata_path = os.path.join(metadata_directory, f'{im_id}.pkl')
 
         # Store representing information about the case
         case_info = {
@@ -104,7 +110,7 @@ def main():
             'cell': {       # MPP and paths to where processed data stored
                 'mpp': get_region_mpp(ocelot_case_metadata, 'cell'),
                 'image_path': to_relpath(cell_image_path, out_dir),
-                'gt_path': to_relpath(cell_gt_path, out_dir),
+                'gt_path': {},  # class_name: path
             }
         }
 
@@ -159,13 +165,74 @@ def main():
         # ### Store 'tissue' annotations overlaid on image (if requested) ###
         if args.extract_overlays:
             tissue_overlay_path = os.path.join(overlays_directory, f'{im_id}_tissue.jpg')
+            # Generate RGB mask
+            tissue_overlay = np.zeros_like(tissue_image)
+            for cls_idx, cls_colour in enumerate(TISSUE_CLASS_COLOURS):
+                tissue_overlay[int_seg_mask == cls_idx] = cls_colour
+            # Blend with original image
+            tissue_overlay = overlay_images(tissue_image, tissue_overlay, 0.25)
+            write_image(tissue_overlay_path, tissue_overlay, overwrite=True)
 
-            # TODO: Generate empty RGB array
-            # TODO: Do overlaying
+        # ### Store 'cell' image ###
+        # Load the cell image
+        cell_image = load_image(image_paths['cell'])
 
-        # TODO: Get reference to cell detection data
+        # Perform Macenko normalisation (if requested)
+        if 'cell' in args.macenko:
+            cell_mask = get_tissue_mask(cell_image)
+            cell_image = macenko.normalise_he_image(cell_image, mask=cell_mask)
 
+        # Write the cell image
+        tif_profile = DEFAULT_TIF_PROFILE.copy()
+        tif_profile['count'] = cell_image.shape[2]
+        tif_profile['width'] = cell_image.shape[1]
+        tif_profile['height'] = cell_image.shape[0]
+        write_tif_rasterio(cell_image_path, cell_image, tif_profile, overwrite=True,
+                           pyramid_factors=TIF_PYRAMID_FACTORS, resampling=Resampling.average)
 
+        # ### Store 'cell' annotations ###
+        cell_annotations = {}       # Mapping from class name to [(x, y), ...] coordinates
+
+        # Load the cell annotations file
+        with open(annotation_paths['cell'], 'r') as csv_file:
+            reader = csv.DictReader(csv_file, fieldnames=['x', 'y', 'label'])
+            cell_annot_data = [dict(row) for row in reader]
+
+        # Data stored as: x, y (region-relative), label
+        for dat in cell_annot_data:
+            x, y = int(dat['x']), int(dat['y'])
+            classname = CELL_CLASSES[CELL_LABEL_MAP[dat['label']]]
+            if classname not in cell_annotations:
+                cell_annotations[classname] = []
+            cell_annotations[classname].append([x, y])
+
+        # Convert to numpy array and write data
+        for name in cell_annotations.keys():
+            cell_annotations[name] = np.asarray(cell_annotations[name])
+
+            # Create folder based on class name
+            cell_gt_directory = os.path.join(cell_det_directory, name)
+            create_directory(cell_gt_directory)
+            cell_gt_path = os.path.join(cell_gt_directory, f'{im_id}.npy')
+            case_info['cell']['gt_path'][name] = to_relpath(cell_gt_path, out_dir)
+
+            # Write to numpy array
+            np.save(cell_gt_path, cell_annotations[name])
+
+        # ### Store 'cell' annotations overlaid on image (if requested) ###
+        if args.extract_overlays:
+            cell_overlay_path = os.path.join(overlays_directory, f'{im_id}_cell.jpg')
+
+            # Overlay points
+            cell_overlay = cell_image.copy()
+            for name in cell_annotations.keys():
+                colour = CELL_CLASS_COLOURS[CELL_CLASSES.index(name)]
+                draw_points_on_image(cell_overlay, cell_annotations[name], colour,
+                                     radius=5, thickness=2, inplace=True)
+            write_image(cell_overlay_path, cell_overlay, overwrite=True)
+
+        # ### Store 'metadata' file ###
+        write_pickle_data(metadata_path, case_info, overwrite=True)
 
 
 def check_valid_ocelot_directory(directory: str):

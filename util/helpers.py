@@ -1,6 +1,8 @@
 import os
-from typing import Tuple, Optional, Sequence, Union, List
+import pickle
+from typing import Tuple, Optional, Sequence, Union, List, Any
 
+import cv2
 import numpy as np
 import torch
 from numpy.typing import NDArray
@@ -151,6 +153,20 @@ def to_relpath(path, rel_to):
     path = os.path.relpath(path, rel_to)
     path = path.replace(os.sep, '/')
     return path
+
+
+def write_pickle_data(filepath: str, data: Any, overwrite: bool = False):
+    """Writes pickled data to file.
+
+    Args:
+        filepath: The file path to write the data to.
+        data: Any picklable data. See here for more information about picklable data:
+            https://docs.python.org/3/library/pickle.html#pickle-picklable.
+        overwrite: Whether to overwrite the existing file if it exists.
+    """
+    mode = 'wb' if overwrite else 'xb'
+    with open(filepath, mode) as pkl_file:
+        pickle.dump(data, pkl_file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 # ##################################################################################################
@@ -354,3 +370,46 @@ def scale_coords_to_mpp(
     if as_int:
         scaled_coords = scaled_coords.astype(np.int32)
     return scaled_coords
+
+
+# ##################################################################################################
+#                                       Drawing Functions
+# ##################################################################################################
+def draw_points_on_image(
+    image: NDArray,
+    points: Union[list, tuple, NDArray[float], NDArray[int]],
+    colour: Tuple[int, int, int] = (0, 0, 0),
+    radius: Optional[int] = 1,
+    thickness: Optional[int] = -1,
+    inplace: bool = False,
+) -> NDArray:
+    """Draws a point (circle)/multiple points (circles) on an image.
+
+    Each point should be a 2-tuple with the x, y coordinates of the point centre.
+
+    Args:
+        image: Image to overlay rectangle on.
+        points: The x, y circle centrepoint coordinate. For multiple points, pass in as a list.
+        colour: RGB colour to overlay on image (default: black (0, 0, 0)).
+        radius: Radius of the points to draw. If None, is derived by the smallest edge of the image.
+        thickness: Thickness of the point border. If -1, the circle will be fully filled. If None,
+            is derived by the smallest edge of the image.
+        inplace: Whether the points should be drawn on the given image, or a copy made and a new
+            image returned.
+    """
+    # Copy image
+    if not inplace:
+        image = image.copy()
+
+    # Set up point representation (handling single/multiple points)
+    if not isinstance(points[0], (tuple, list, np.ndarray)):
+        points = [points]
+
+    # Draw all points
+    for idx, point in enumerate(points):
+        point_colour = colour
+        cv2.circle(
+            image, (int(round(point[0])), int(round(point[1]))), radius=radius, color=point_colour,
+            thickness=thickness, lineType=cv2.LINE_AA)
+
+    return image
