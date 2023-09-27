@@ -104,11 +104,13 @@ def main():
             'id': im_id,
             'tissue': {     # MPP and paths to where processed data stored
                 'mpp': get_region_mpp(ocelot_case_metadata, 'tissue'),
+                'dimensions': [],
                 'image_path': to_relpath(tissue_image_path, out_dir),
                 'gt_path': to_relpath(tissue_gt_path, out_dir),
             },
             'cell': {       # MPP and paths to where processed data stored
                 'mpp': get_region_mpp(ocelot_case_metadata, 'cell'),
+                'dimensions': [],
                 'image_path': to_relpath(cell_image_path, out_dir),
                 'gt_path': {},  # class_name: path
             }
@@ -121,6 +123,7 @@ def main():
         # ### Store 'tissue' image ###
         # Load the tissue image
         tissue_image = load_image(image_paths['tissue'])
+        case_info['tissue']['dimensions'] = [tissue_image.shape[1], tissue_image.shape[0]]
 
         # Perform Macenko normalisation (if requested)
         if 'tissue' in args.macenko:
@@ -176,6 +179,7 @@ def main():
         # ### Store 'cell' image ###
         # Load the cell image
         cell_image = load_image(image_paths['cell'])
+        case_info['cell']['dimensions'] = [cell_image.shape[1], cell_image.shape[0]]
 
         # Perform Macenko normalisation (if requested)
         if 'cell' in args.macenko:

@@ -104,43 +104,45 @@ class TissueDataset(Dataset):
 
         # Populate the datastore
         # TODO: FROM HERE
-        for metadata in patient_metadata:
-            for region in metadata['regions']:
-                # This represents coords of image relative to WSI (regardless of any scaling)
-                if 'original_coordinates' in region_data:
-                    original_coordinates = region_data['original_coordinates']
-                else:
-                    original_coordinates = region_data['coordinates']
-                region_data['original_coordinates'] = np.asarray(original_coordinates)
+        for metadata in all_metadata:
+            print(metadata)
+            assert False
+            # TODO: Just the tissue stuff
+            # This represents coords of image relative to WSI (regardless of any scaling)
+            if 'original_coordinates' in region_data:
+                original_coordinates = region_data['original_coordinates']
+            else:
+                original_coordinates = region_data['coordinates']
+            region_data['original_coordinates'] = np.asarray(original_coordinates)
 
-                # Store the dimensions of the whole region
-                region_data['region_dimensions'] = get_region_dimensions(
-                    region_data.pop('coordinates'))
-                if self.scale_to_mpp is not None:
-                    # If scaling, store the scaled region dimensions
-                    region_data['region_dimensions'] = (
-                        convert_pixel_mpp(
-                            region_data['region_dimensions'][0], region_data['scale_info']['mpp_x'],
-                            self.scale_to_mpp, round_int=True),
-                        convert_pixel_mpp(
-                            region_data['region_dimensions'][1], region_data['scale_info']['mpp_y'],
-                            self.scale_to_mpp, round_int=True))
+            # Store the dimensions of the whole region
+            region_data['region_dimensions'] = get_region_dimensions(
+                region_data.pop('coordinates'))
+            if self.scale_to_mpp is not None:
+                # If scaling, store the scaled region dimensions
+                region_data['region_dimensions'] = (
+                    convert_pixel_mpp(
+                        region_data['region_dimensions'][0], region_data['scale_info']['mpp_x'],
+                        self.scale_to_mpp, round_int=True),
+                    convert_pixel_mpp(
+                        region_data['region_dimensions'][1], region_data['scale_info']['mpp_y'],
+                        self.scale_to_mpp, round_int=True))
 
-                # Convert region_dimensions to a numpy array (for proper batching)
-                region_data['region_dimensions'] = np.asarray(region_data['region_dimensions'])
+            # Convert region_dimensions to a numpy array (for proper batching)
+            region_data['region_dimensions'] = np.asarray(region_data['region_dimensions'])
 
-                # Filter/create any additional/modified regions
-                region_data_list = [region_data]
+            # Filter/create any additional/modified regions
+            region_data_list = [region_data]
 
-                # Create any tiles (if necessary)
-                # TODO
-                if self.tile_size is not None:
-                    region_data_list = self.tile_region_data_list(region_data_list)
-                # END TODO
+            # Create any tiles (if necessary)
+            # TODO
+            if self.tile_size is not None:
+                region_data_list = self.tile_region_data_list(region_data_list)
+            # END TODO
 
-                # Append the data to the region data store
-                for region_data in region_data_list:
-                    for _ in range(self.samples_per_region):
-                        all_region_data.append(region_data)
+            # Append the data to the region data store
+            for region_data in region_data_list:
+                for _ in range(self.samples_per_region):
+                    all_region_data.append(region_data)
 
         return all_region_data
