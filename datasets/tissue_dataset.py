@@ -1,15 +1,23 @@
 """Torch dataset used for loading tissue images with segmentation ground truth.
 """
+import copy
 import os
 import pickle
 from typing import Optional, Union, Tuple, List
 
 import albumentations as A
+import numpy as np
 from albumentations import ToFloat
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import Dataset
 
 from util.constants import TISSUE_CLASSES
+from util.helpers import convert_pixel_mpp, calculate_cropped_size
+from util.tiling import generate_tiles
+
+
+# Region data key used to show we are tiling.
+TILE_COORDS = '_TILE_COORDINATES'
 
 
 class TissueDataset(Dataset):
@@ -103,42 +111,30 @@ class TissueDataset(Dataset):
         all_region_data = []
 
         # Populate the datastore
-        # TODO: FROM HERE
         for metadata in all_metadata:
-            print(metadata)
-            assert False
-            # TODO: Just the tissue stuff
-            # This represents coords of image relative to WSI (regardless of any scaling)
-            if 'original_coordinates' in region_data:
-                original_coordinates = region_data['original_coordinates']
-            else:
-                original_coordinates = region_data['coordinates']
-            region_data['original_coordinates'] = np.asarray(original_coordinates)
+            region_data = metadata['tissue']
+            region_data['id'] = metadata['id']
+            region_data['original_dimensions'] = np.asarray(region_data['dimensions'])
 
-            # Store the dimensions of the whole region
-            region_data['region_dimensions'] = get_region_dimensions(
-                region_data.pop('coordinates'))
+            # If scaling, store the scaled region dimensions
             if self.scale_to_mpp is not None:
-                # If scaling, store the scaled region dimensions
-                region_data['region_dimensions'] = (
+                region_data['dimensions'] = (
                     convert_pixel_mpp(
-                        region_data['region_dimensions'][0], region_data['scale_info']['mpp_x'],
+                        region_data['dimensions'][0], region_data['mpp'][0],
                         self.scale_to_mpp, round_int=True),
                     convert_pixel_mpp(
-                        region_data['region_dimensions'][1], region_data['scale_info']['mpp_y'],
+                        region_data['dimensions'][1], region_data['mpp'][0],
                         self.scale_to_mpp, round_int=True))
 
-            # Convert region_dimensions to a numpy array (for proper batching)
-            region_data['region_dimensions'] = np.asarray(region_data['region_dimensions'])
+            # Convert dimensions to a numpy array (for proper batching)
+            region_data['dimensions'] = np.asarray(region_data['dimensions'])
 
-            # Filter/create any additional/modified regions
+            # Turn into a list so data can be sampled multiple times
             region_data_list = [region_data]
 
             # Create any tiles (if necessary)
-            # TODO
             if self.tile_size is not None:
                 region_data_list = self.tile_region_data_list(region_data_list)
-            # END TODO
 
             # Append the data to the region data store
             for region_data in region_data_list:
@@ -146,3 +142,45 @@ class TissueDataset(Dataset):
                     all_region_data.append(region_data)
 
         return all_region_data
+
+    def tile_region_data_list(self, region_data_list: List) -> List:
+        """Creates tiles from a list of region data, generating more regions as necessary.
+
+        When tiling, the region_data is duplicated N times (per-tile), and the TILE_COORDS key
+        added to the region_data.
+
+        Args:
+            region_data_list: A list of region data dictionaries
+
+        Returns:
+            A list of region data dictionaries, but with tile coordinates set as required.
+        """
+        tiled_region_data = []
+        for region_data in region_data_list:
+            # Extract coordinates used to generate tiles
+            coords_to_tile = [0, 0, *region_data['dimensions']]
+
+            # Generate the tiles (returns a list of numpy arrays)
+            output_size = calculate_cropped_size(self.tile_size, self.output_crop_margin)
+            all_tiles = generate_tiles(coords_to_tile, self.tile_size, output_size)
+
+            # Append each tile to the tiled_region_data list
+            for tile in all_tiles:
+                # Create a copy of the original region data and set the TILE_COORDS key
+                current_region_data = copy.deepcopy(region_data)
+                current_region_data[TILE_COORDS] = tile
+                tiled_region_data.append(current_region_data)
+
+        return tiled_region_data
+
+    def __len__(self) -> int:
+        """Returns the length of the dataset.
+
+        The length of the dataset is the total number of regions.
+
+        Returns:
+            The length of the dataset.
+        """
+        return len(self.all_region_data)
+
+    # TODO: Implement __getitem__
