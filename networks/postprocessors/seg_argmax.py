@@ -3,12 +3,12 @@ from typing import List, Dict, Any
 import torch
 
 from networks.postprocessors.postprocessor import Postprocessor
-from util.constants import SEG_MASK_LOGITS, SEG_MASK_PROB
+from util.constants import SEG_MASK_LOGITS, SEG_MASK_INT
 
 
-class SegSoftmax(Postprocessor):
+class SegArgmax(Postprocessor):
     def __init__(self):
-        """Creates a postprocessor for taking the softmax of segmentation mask logits.
+        """Creates a postprocessor for taking the argmax of segmentation mask logits.
         """
         super().__init__()
 
@@ -18,6 +18,6 @@ class SegSoftmax(Postprocessor):
 
     def postprocess(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
         mask_logits = outputs[SEG_MASK_LOGITS]
-        mask_prob = torch.softmax(mask_logits, dim=-3).to(torch.float32)
+        mask_int = torch.argmax(mask_logits, dim=-3).to(torch.uint8)
 
-        return {**outputs, SEG_MASK_PROB: mask_prob}
+        return {**outputs, SEG_MASK_INT: mask_int}

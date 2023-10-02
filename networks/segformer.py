@@ -62,6 +62,12 @@ class SegFormer(nn.Module):
         self.model.load_state_dict(
             torch.load(weights_path, map_location=model_device)['state_dict'])
 
+    @property
+    def required_input_keys(self):
+        if self.input_with_mask:
+            return [INPUT_IMAGE_MASK_KEY]
+        return [INPUT_IMAGE_KEY]
+
     def forward(self, inputs):
         # Do forward pass
         if self.input_with_mask:

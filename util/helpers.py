@@ -49,6 +49,21 @@ def create_directory(directory: str):
         os.makedirs(directory, exist_ok=True)
 
 
+def replace_extension(filepath: str, new_extension: str) -> str:
+    """Replaces the extension of a filepath.
+
+    Args:
+        filepath: File path to replace the extension of.
+        new_extension: New extension to replace the old one (MUST INCLUDE THE PERIOD).
+
+    Returns:
+        File path with the replaced extension.
+    """
+    directory = os.path.dirname(filepath)
+    basename = get_basename_from_filepath(filepath)
+    return os.path.join(directory, basename + new_extension)
+
+
 def get_nested_directory_level(base_directory: str, nested_directory: str) -> int:
     """Gets the nested level of a directory relative to a base directory.
 
@@ -246,6 +261,42 @@ def convert_dimensions_to_mpp(dimensions: Sequence[float], from_mpp: Union[float
             raise ValueError(f'Rounding produced different results. Rounding: {converted_dims}. '
                              f'No rounding: {converted_dims_no_round}.')
     return converted_dims
+
+
+def convert_coordinates_to_mpp(coordinates, original_mpp, new_mpp, round_int=False):
+    """Expresses box coordinates at a different resolution.
+
+    Box coordinates are expected to be in [x1, y1, x2, y2] layout.
+
+    Args:
+        coordinates (list of 4 ints): The original box coordinates.
+        original_mpp (float/2-tuple/list): The resolution corresponding to the original box
+            coordinates (in microns per pixel). If a float, assumes mpp_x == mpp_y. If a tuple/list,
+            give as (mpp_x, mpp_y).
+        new_mpp (float/2-tuple/list): The new resolution (in microns per pixel). If a float,
+            assumes mpp_x == mpp_y. If a tuple/list, give as (mpp_x, mpp_y).
+        round_int (bool): Whether after conversion the result should be rounded and cast to int.
+
+    Returns:
+        coordinates (list of 4 ints): The coordinates in the new mpp space
+    """
+    # Ensure correct data format
+    if not isinstance(original_mpp, (tuple, list)):
+        original_mpp = (original_mpp, original_mpp)
+    if not isinstance(new_mpp, (tuple, list)):
+        new_mpp = (new_mpp, new_mpp)
+
+    # Copy the coordinates
+    coordinates = coordinates.copy()
+
+    # Perform the conversion
+    coordinates[0] = convert_pixel_mpp(coordinates[0], original_mpp[0], new_mpp[0], round_int=round_int)
+    coordinates[1] = convert_pixel_mpp(coordinates[1], original_mpp[1], new_mpp[1], round_int=round_int)
+    coordinates[2] = convert_pixel_mpp(coordinates[2], original_mpp[0], new_mpp[0], round_int=round_int)
+    coordinates[3] = convert_pixel_mpp(coordinates[3], original_mpp[1], new_mpp[1], round_int=round_int)
+
+    # Return the converted coordinates
+    return coordinates
 
 
 def get_region_dimensions(region: Sequence[int]) -> Tuple[int, int]:

@@ -36,4 +36,12 @@ Below are instructions on the steps to take to train your own models.
 
 1. Preprocess the OCELOT data with the preprocess script:
    * `python preprocess_ocelot_dataset.py --ocelot-directory /path/to/ocelot --output-directory /path/to/processed/directory`
-   * This also has an option `--extract-overlays` to also generate JPG files showing the annotations overlaid on the image data
+   * This script has the option `--extract-overlays` to also generate JPG files showing the annotations overlaid on the image data.
+2. Train the tissue segmentation model:
+   * `python train_tissue_model.py --data-directory /path/to/processed/directory --output-directory /path/to/tissue/outputs`
+   * A number of parameters can be configured as command line arguments. Defaults match the settings used to train the model for submission to the OCELOT Grand Challenge.
+   * The default split file used is the one that contains an internal training and validation set. The `split-directory` argument can be used to swap to the `all_train` split.
+   * This will output to the directory the following files:
+     * `model-latest.pth`: The weights from the trained model (at the latest epoch).
+     * `train_log.csv`: Information related to model training (loss & metrics).
+     * `val_log.csv`: Information related to model evaluation (loss & metrics) ONLY if the validation split exists.

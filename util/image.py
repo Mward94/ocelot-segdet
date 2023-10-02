@@ -9,6 +9,7 @@ import numpy as np
 import rasterio
 from numpy.typing import NDArray
 from rasterio.enums import Resampling
+from rasterio.windows import from_bounds
 
 from util import macenko
 from util.helpers import get_region_dimensions, get_windowed_load_crop
@@ -72,18 +73,96 @@ def write_tif_rasterio(
                 out_tif.update_tags(ns='rio_overview', resampling=resampling.name)
 
 
-def load_image(filepath: str) -> NDArray[np.uint8]:
-    """Loads a RGB image into a numpy array
+def load_tif_rasterio(
+    filepath: str,
+    window: Optional[Sequence[int]] = None,
+    out_size: Optional[Sequence[int]] = None,
+    resampling: Optional[Union[str, Resampling]] = None,
+    fill_value: int = 0,
+    dtype=np.uint8,
+) -> Tuple[np.ndarray, Optional[Tuple[int, int, int, int]]]:
+    """Loads a TIF image using rasterio.
+
+    The image will be returned as a HWC numpy array (or a HW array if there is only one channel).
 
     Args:
-        filepath: Filepath to the image to be loaded
+        filepath: Path to the TIF file to load.
+        window: The x1, y1, x2, y2 coordinates of the rectangular sub-image to load from the full
+            image. Specifying a window in this way enables image loading optimisations. If part of
+            the window lies outside the full image bounds, padding will be applied.
+        out_size: The width, height to resize the loaded image data to. Specifying an output size
+            in this way enables image loading optimisations when the TIF file contains an image
+            pyramid.
+        resampling: The resampling algorithm to use when resizing. If None, the resampling algorithm
+            will be inferred from the TIF file or fall back to average if that's not possible.
+        fill_value: The fill value to use for out of bounds pixels when reading the image.
+        dtype: The datatype to load data as.
 
     Returns:
-        The loaded RGB image, with channel ordering HWC
+        The loaded image data and the x1, y1, x2, y2 coordinates of the rectangular region inside
+        the loaded image where valid data exists (or ``None`` if it is all valid).
     """
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f'Cannot load file: {filepath} - Does not exist.')
-    return cv2.cvtColor(cv2.imread(filepath), cv2.COLOR_BGR2RGB)
+
+    if window is None:
+        window_size = None
+    else:
+        window_size = get_region_dimensions(window)
+
+    crop_window = None
+    with rasterio.open(filepath) as in_tif:
+        in_size = (in_tif.width, in_tif.height)
+
+        if out_size is None:
+            if window is None:
+                out_size = in_size
+            else:
+                out_size = window_size
+
+        if resampling is None:
+            resampling = Resampling[in_tif.tags(ns='rio_overview').get('resampling', 'average')]
+        elif isinstance(resampling, str):
+            resampling = Resampling[resampling]
+
+        # Create an empty array to load data into
+        image_data = np.full((in_tif.count, out_size[1], out_size[0]), fill_value=fill_value,
+                             dtype=dtype)
+
+        if window is None:
+            image_data_valid = image_data
+        else:
+            # Get the region where data should be loaded into
+            cx1, cy1, cx2, cy2 = get_windowed_load_crop(in_size, window)
+
+            # Scale the crop window using out_size
+            scale_x = out_size[0] / window_size[0]
+            scale_y = out_size[1] / window_size[1]
+            cx1 = int(cx1 * scale_x)
+            cy1 = int(cy1 * scale_y)
+            cx2 = int(cx2 * scale_x)
+            cy2 = int(cy2 * scale_y)
+            image_data_valid = image_data[..., cy1:cy2, cx1:cx2]
+            crop_window = (cx1, cy1, cx2, cy2)
+
+        rio_window = None
+        if window is not None:
+            rio_window = from_bounds(
+                left=window[0], top=window[1], right=window[2], bottom=window[3],
+                transform=in_tif.transform
+            )
+
+        # Load data into that region (everything else becomes padding)
+        in_tif.read(out=image_data_valid, window=rio_window, resampling=resampling)
+
+    # Switch from CHW to HWC axis order
+    image_data = np.transpose(image_data, (1, 2, 0))
+
+    # Remove the channel axis if there is only one channel
+    if image_data.shape[-1] == 1:
+        image_data = np.squeeze(image_data, -1)
+
+    return image_data, crop_window
 
 
 def write_image(filepath: str, image: NDArray[np.uint8], overwrite: bool = False):
@@ -104,6 +183,20 @@ def write_image(filepath: str, image: NDArray[np.uint8], overwrite: bool = False
 
     # Write the data
     cv2.imwrite(filepath, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+
+
+def load_image(filepath: str) -> NDArray[np.uint8]:
+    """Loads a RGB image into a numpy array
+
+    Args:
+        filepath: Filepath to the image to be loaded
+
+    Returns:
+        The loaded RGB image, with channel ordering HWC
+    """
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f'Cannot load file: {filepath} - Does not exist.')
+    return cv2.cvtColor(cv2.imread(filepath), cv2.COLOR_BGR2RGB)
 
 
 def get_tissue_mask(

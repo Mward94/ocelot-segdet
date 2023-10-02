@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, List, Dict, Any, Union, Iterable, Optional
+from typing import Tuple, List, Dict, Any, Union, Optional
 
 import cv2
 import numpy as np
@@ -24,6 +24,7 @@ from util.image import precompute_macenko_params, crop_image
 from util.ocelot_parsing import get_region_mpp, cell_scale_crop_in_tissue_at_cell_mpp
 from util.tiling import generate_tiles
 from util.torch import get_default_device, move_data_to_device
+from util.training import postprocess_outputs
 
 # ### Constants ###
 # General constants
@@ -328,35 +329,6 @@ def cell_detection(
     # Extract and return the coordinates, classes, and scores
     return complete_prediction[DET_POINTS_KEY].numpy(), \
         complete_prediction[DET_INDICES_KEY].numpy(), complete_prediction[DET_SCORES_KEY].numpy()
-
-
-def postprocess_outputs(
-        outputs: Dict[str, Any], postprocessors: Iterable[Postprocessor],
-) -> Dict[str, Any]:
-    """Postprocess model outputs.
-
-    The model outputs will be passed through a chain of postprocessors and the final result
-    returned. Additionally, the model output keys will be validated to ensure that each
-    postprocessor has all the data it needs.
-
-    Args:
-        outputs: The original model outputs.
-        postprocessors: A list of postprocessors to apply to the outputs (in order).
-
-    Returns:
-        The postprocessed model outputs.
-    """
-    for postprocessor in postprocessors:
-        actual_keys = set(outputs.keys())
-        required_keys = set(postprocessor.model_output_keys)
-        key_diff = required_keys - actual_keys
-        if len(key_diff) > 0:
-            key_diff_str = ', '.join(sorted([k for k in key_diff]))
-            raise ValueError(f'The {postprocessor.__class__.__name__} postprocessor requires the '
-                             f'following missing model outputs: {key_diff_str}')
-        outputs = postprocessor.postprocess(outputs)
-
-    return outputs
 
 
 def inference_batch(batch, model, device):

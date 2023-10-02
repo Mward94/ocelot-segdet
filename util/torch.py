@@ -1,9 +1,12 @@
 """Collection of PyTorch utility functions.
 """
 import random
+from typing import Optional
 
 import numpy as np
 import torch
+from torch import nn
+from torch.optim.lr_scheduler import _LRScheduler
 
 
 def get_default_device() -> torch.device:
@@ -48,3 +51,39 @@ def seed_all(seed: int):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+
+
+def get_current_lr(optimiser):
+    """Gets the current Learning Rate from the optimiser.
+    """
+    return optimiser.param_groups[0]['lr']
+
+
+def save_model_state(
+    target_filepath: str,
+    model: nn.Module,
+    epoch_num: Optional[int] = None,
+    optimiser: Optional[torch.optim.Optimizer] = None,
+    scheduler: Optional[_LRScheduler] = None,
+):
+    """Stores the model state to file along with some other fields.
+
+    Args:
+        target_filepath: Path to write the saved model state to. By convention it should have
+            a .pth extension.
+        model: Model to save state of.
+        epoch_num: The epoch number that was just trained. This starts at 0
+            e.g. If epoch_num = 0, then the model has been trained for 1 epoch.
+        optimiser: If given, will also save the state of the optimiser.
+        scheduler: If given, will also save the state of the scheduler.
+    """
+    data = {'state_dict': model.state_dict()}
+
+    if epoch_num is not None:
+        data['epoch'] = epoch_num
+    if optimiser is not None:
+        data['optimiser'] = optimiser.state_dict()
+    if scheduler is not None:
+        data['scheduler'] = scheduler.state_dict()
+
+    torch.save(data, target_filepath)

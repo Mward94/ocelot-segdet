@@ -29,3 +29,4 @@ POINT_HEATMAP_KEY = 'seg_mask_point_heatmap'    # Segmentation mask representing
 DET_POINTS_KEY = 'det_points'       # Detected point coordinates (x, y)
 DET_INDICES_KEY = 'det_indices'     # Class indices of detected points
 DET_SCORES_KEY = 'det_scores'       # Confidence scores per-detection
+GT_SEG_MASK = 'gt_seg_mask'         # Ground truth segmentation mask

@@ -7,12 +7,16 @@ from typing import Optional, Union, Tuple, List
 
 import albumentations as A
 import numpy as np
+import torch
 from albumentations import ToFloat
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import Dataset
+from torchvision.transforms import functional as F
 
-from util.constants import TISSUE_CLASSES
-from util.helpers import convert_pixel_mpp, calculate_cropped_size
+from util.constants import TISSUE_CLASSES, GT_SEG_MASK, INPUT_IMAGE_KEY
+from util.helpers import convert_pixel_mpp, calculate_cropped_size, get_region_dimensions, \
+    convert_coordinates_to_mpp
+from util.image import load_tif_rasterio
 from util.tiling import generate_tiles
 
 
@@ -83,9 +87,6 @@ class TissueDataset(Dataset):
         # Set up store of annotation metadata
         self.all_region_data = self._load_from_split()
 
-        for tx in self.transform:
-            print(tx.__class__.__name__)
-
     def _load_from_split(self):
         """Loads all data given the filepath to a split to load
 
@@ -103,9 +104,6 @@ class TissueDataset(Dataset):
         for file in metadata_pkl_files:
             with open(file, 'rb') as pkl_file:
                 all_metadata.append(pickle.load(pkl_file))
-
-        # Create a store of dataset -> data path (for efficiency)
-        dataset_data_store = {}
 
         # Create a datastore by region
         all_region_data = []
@@ -183,4 +181,165 @@ class TissueDataset(Dataset):
         """
         return len(self.all_region_data)
 
-    # TODO: Implement __getitem__
+    def __getitem__(self, idx):
+        """Gets the next element from the dataset at index <idx>
+
+        Args:
+            idx (int): Index of the element to retrieve data for
+
+        Returns:
+            (dict): A dictionary of data belonging to the requested sample. This ground truth
+                included with this dictionary is comprised of the constant GT_SEG_MASK, which
+                represents the ground truth segmentation mask.
+        """
+        region_data = self.all_region_data[idx]
+        example = self._load_item(region_data)
+
+        # Crop the ground truth mask if output_crop_margin is defined
+        margin = self.output_crop_margin
+        if margin is not None:
+            height, width = calculate_cropped_size(example[GT_SEG_MASK].shape[-2:], margin)
+            example[GT_SEG_MASK] = F.crop(example[GT_SEG_MASK],
+                                          top=margin, left=margin, height=height, width=width)
+
+        return example
+
+    def _load_item(self, region_data: dict, disable_tiling: bool = False):
+        # If tiling, determine the window to load
+        load_window = None
+        out_size = region_data['dimensions']
+        if not disable_tiling and TILE_COORDS in region_data:
+            tile_window = region_data[TILE_COORDS]
+            load_window = convert_coordinates_to_mpp(       # Tile window at scaled MPP
+                tile_window, self.scale_to_mpp, region_data['mpp'], round_int=True)
+            out_size = get_region_dimensions(tile_window)
+
+        # Load the input region
+        input_region, _ = load_tif_rasterio(
+            os.path.join(self.data_directory, region_data['image_path']), window=load_window,
+            out_size=out_size)
+
+        # Load the ground truth
+        load_fill_value = TISSUE_CLASSES.index(self.pad_class_name)  # Fill value to use for out of bounds pixels when reading the mask
+        ground_truth, _ = load_tif_rasterio(
+            os.path.join(self.data_directory, region_data['gt_path']), window=load_window,
+            out_size=out_size, resampling='nearest', fill_value=load_fill_value)
+
+        # Apply any transforms.
+        # Zero padding may appear during the transform. To avoid this, we first increase the class
+        # index of each GT class by 1 to ensure no class has index zero, this means we can be sure
+        # that all index 0 elements are padding.
+        ground_truth += 1
+
+        transformed = self.transform(image=input_region, mask=ground_truth)
+        input_region = transformed['image']
+        ground_truth = transformed['mask']
+
+        # Map back from +1 indices to indices in class_list, handling 0 elements.
+        pad_indices = torch.eq(ground_truth, 0)
+        if torch.any(pad_indices):
+            if self.pad_class_name is None:
+                raise RuntimeError('Padding was introduced while loading and transforming data, '
+                                   'but pad_class_name is not specified.')
+            ground_truth[pad_indices] = TISSUE_CLASSES.index(self.pad_class_name) + 1
+        ground_truth -= 1
+
+        # Return data, along with some other useful metadata
+        used_mpp = (self.scale_to_mpp, self.scale_to_mpp) if self.scale_to_mpp is not None else region_data['mpp']
+
+        return {
+            'id': region_data['id'],
+            'input_path': region_data['image_path'],
+            'dimensions': region_data['dimensions'],
+            'output_coordinates': self.get_output_coordinates(input_region, region_data, offset_to_tile=True),
+            'mpp': used_mpp,
+            INPUT_IMAGE_KEY: input_region,
+            GT_SEG_MASK: ground_truth,
+        }
+
+    def get_output_coordinates(self, input_region, region_data, offset_to_tile=True):
+        """Given some region data, determines the output coordinates used for that region
+
+        NOTE: By default, the coordinates will be relative to the input region (i.e. (0, 0) is the
+            top-left of the input region)
+
+        Args:
+            input_region (ndarray/Tensor): The input region following all transforms. If tensor,
+                expected ordering is CHW, if ndarray, expected ordering is HWC
+            region_data (dict): Dictionary of data relating to the region being loaded
+            offset_to_tile (bool): If True, the output coordinates are offset by the tile
+                coordinates (if found), instead of offset to (0, 0) by default. If no tiling, then
+                this does nothing
+
+        Returns:
+            (ndarray/None): The expected output coordinates of the input (if applicable), otherwise
+                None. If offset_to_tile is True, the coordinates will be relative to the tile
+                position in the whole input area, otherwise they will be relative to (0, 0) (i.e.
+                the input region)
+        """
+        # First set up the output coordinates as the shape of the input region
+        if isinstance(input_region, torch.Tensor):
+            input_height, input_width = input_region.shape[1:]
+        else:
+            input_height, input_width = input_region.shape[:2]
+
+        # Start by setting the output coords as the whole input area
+        output_coords = [0, 0, input_width, input_height]
+
+        # If output_crop_margin specified, output coords should be centre cropped to output_size
+        if self.output_crop_margin is not None:
+            output_height, output_width = \
+                calculate_cropped_size((input_height, input_width), self.output_crop_margin)
+            # Determine top/left coordinate of output
+            output_x1 = int(round((input_width - output_width) / 2))
+            output_y1 = int(round((input_height - output_height) / 2))
+
+            # Set coords as x1, y1, x1 + width, y1 + height
+            output_coords = [output_x1, output_y1,
+                             output_x1 + output_width, output_y1 + output_height]
+
+        # Convert output coordinates to a numpy array
+        output_coords = np.asarray(output_coords)
+
+        # Shift the output coords based on TILE_COORDS if required
+        if offset_to_tile and TILE_COORDS in region_data:
+            # Extract the tile coordinates
+            tile_coords = region_data[TILE_COORDS]
+
+            # Shift the output coords based on tile coords
+            output_coords[[0, 2]] += tile_coords[0]
+            output_coords[[1, 3]] += tile_coords[1]
+
+        return output_coords
+
+    def get_complete_input_and_ground_truth_for_input_path(self, input_path):
+        """Returns complete input and ground truth data corresponding to a given input path
+
+        Ensures any transforms/scaling is still applied to the input/ground truth
+        Any tiling/output size specifications should be ignored
+
+        Args:
+            input_path (str): Path to the input
+
+        Returns:
+            (dict): A dictionary of input and ground truth data belonging to the requested sample.
+                It is unnecessary to include any metadata with this
+        """
+        region_data = self.get_region_data_for_input_path(input_path)
+        return self._load_item(region_data, disable_tiling=True)
+
+    def get_region_data_for_input_path(self, input_path):
+        """Returns the first found region data with input path matching the given argument
+
+        Args:
+            input_path (str): Path of the input to search for
+
+        Returns:
+            (dict): Region data (for one of the regions) associated to that input path
+        """
+        try:
+            region_data = next(dat for dat in self.all_region_data
+                               if dat['image_path'] == input_path)
+        except StopIteration:
+            raise RuntimeError(f'Could not find data corresponding to input path {input_path}')
+        return region_data
