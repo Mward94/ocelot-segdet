@@ -294,6 +294,81 @@ def precompute_macenko_params(image: NDArray[np.uint8]) -> Dict[str, Any]:
     return macenko_params
 
 
+def generate_gaussian_point_heatmap(
+    points: NDArray,
+    sigma: float,
+    heatmap_size: Sequence[int] = None,
+    out_heatmap: Optional[NDArray[np.float32]] = None,
+) -> NDArray[np.float32]:
+    """Creates a heatmap with Gaussians centred at each point.
+
+    If any parts of Gaussians overlap, the maximal value at that location is taken.
+    The Gaussians are not normalized, so the largest value of each Gaussian will be 1.
+
+    This code is adapted from the Stacked Hourglass 2D Gaussian implementation:
+    https://github.com/bearpaw/pytorch-pose/blob/edc7aece651649927764435ce0c1f03cffa2edaf/pose/utils/imutils.py#L52
+
+    And with other inspiration taken from:
+    https://stackoverflow.com/a/69026901
+
+    Args:
+        points: The set of (N, 2) points within the heatmap to create 2D Gaussians.
+        sigma: The standard deviation of the Gaussians.
+        heatmap_size: The desired (height, width) of the Gaussian to create. Not required if
+            specifying out_heatmap.
+        out_heatmap: If provided, the Gaussians will be drawn onto this heatmap, otherwise a new
+            heatmap will be created.
+
+    Returns:
+        The generated heatmap with Gaussians created at each point in points.
+    """
+    if heatmap_size is None and out_heatmap is None:
+        raise ValueError('Must specify heatmap_size or out_heatmap.')
+
+    if points.ndim != 2 or points.shape[-1] != 2:
+        raise ValueError(f'Points should have shape: (N, 2). Has shape: {points.shape}')
+
+    if out_heatmap is None:
+        out_heatmap = np.zeros(heatmap_size, dtype=np.float32)
+
+    if out_heatmap.ndim != 2:
+        raise ValueError(f'Heatmap should have 2 dimensions (H, W). Has dimensionality: '
+                         f'{out_heatmap.shape}')
+
+    # Generate the Gaussian to place at each point
+    size = 6 * sigma + 1
+    x = np.arange(0, size, 1, float)
+    y = x[:, np.newaxis]
+    x0 = y0 = size // 2
+    # The gaussian is not normalized, we want the center value to equal 1
+    # To normalize we would multiply by 1/(2*pi*sigma^2)
+    g = np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
+
+    # Iterate through all points and draw the Gaussian
+    for pt in points:
+        # Check that any part of the Gaussian is in-bounds
+        ul = [int(pt[0] - 3 * sigma), int(pt[1] - 3 * sigma)]
+        br = [int(pt[0] + 3 * sigma + 1), int(pt[1] + 3 * sigma + 1)]
+        if (ul[0] >= out_heatmap.shape[1] or ul[1] >= out_heatmap.shape[0] or
+                br[0] < 0 or br[1] < 0):
+            # If not, don't do anything with this point
+            continue
+
+        # Usable gaussian range
+        g_x = max(0, -ul[0]), min(br[0], out_heatmap.shape[1]) - ul[0]
+        g_y = max(0, -ul[1]), min(br[1], out_heatmap.shape[0]) - ul[1]
+        # Image range
+        img_x = max(0, ul[0]), min(br[0], out_heatmap.shape[1])
+        img_y = max(0, ul[1]), min(br[1], out_heatmap.shape[0])
+
+        out_heatmap[img_y[0]:img_y[1], img_x[0]:img_x[1]] = np.maximum(
+            out_heatmap[img_y[0]:img_y[1], img_x[0]:img_x[1]],
+            g[g_y[0]:g_y[1], g_x[0]:g_x[1]]
+        )
+
+    return out_heatmap
+
+
 def overlay_images(original, data_to_overlay, alpha, beta=None, gamma=0):
     """Overlays an image ontop of another one
 

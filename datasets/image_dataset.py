@@ -176,7 +176,7 @@ class ImageDataset(Dataset):
         # Convert output coordinates to a numpy array
         output_coords = np.asarray(output_coords)
 
-        # Shift the output coords based on TILE_COORDS if required
+        # Shift the output coords based on tile_coords if required
         if offset_to_tile and tile_coords is not None:
             # Shift the output coords based on tile coords
             output_coords[[0, 2]] += tile_coords[0]

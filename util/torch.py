@@ -1,12 +1,14 @@
 """Collection of PyTorch utility functions.
 """
 import random
-from typing import Optional
+from typing import Optional, Mapping
 
 import numpy as np
 import torch
 from torch import nn
 from torch.optim.lr_scheduler import _LRScheduler
+
+from util.constants import INPUT_IMAGE_KEY, GT_POINT_HEATMAP_KEY, INPUT_IMAGE_MASK_KEY
 
 
 def get_default_device() -> torch.device:
@@ -87,3 +89,18 @@ def save_model_state(
         data['scheduler'] = scheduler.state_dict()
 
     torch.save(data, target_filepath)
+
+
+def detection_collate_fn(batch, key=None):
+    """Custom collate function for detection tasks
+
+    This collates the INPUT_IMAGE_KEY, GT_POINT_HEATMAP_KEY, and INPUT_IMAGE_MASK_KEY as normal.
+    All other keys are collated as tuples (given points/indices must be collated this way).
+    """
+    _NORMAL_COLLATE_KEYS = (INPUT_IMAGE_KEY, GT_POINT_HEATMAP_KEY, INPUT_IMAGE_MASK_KEY)
+    elem = batch[0]
+    if isinstance(elem, Mapping):
+        return {key: detection_collate_fn([d[key] for d in batch], key=key) for key in elem}
+    if isinstance(elem, torch.Tensor) and key in _NORMAL_COLLATE_KEYS:
+        return torch.stack(batch, 0)
+    return tuple(batch)

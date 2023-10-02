@@ -3,7 +3,7 @@ from typing import Optional, List, Dict
 import torch
 from torch.nn.functional import cross_entropy
 
-from util.constants import SEG_MASK_LOGITS, GT_SEG_MASK
+from util.constants import SEG_MASK_LOGITS_KEY, GT_SEG_MASK_KEY
 
 
 class SegCrossEntropyLoss:
@@ -42,15 +42,15 @@ class SegCrossEntropyLoss:
 
     @property
     def model_output_keys(self) -> List[str]:
-        return [SEG_MASK_LOGITS]
+        return [SEG_MASK_LOGITS_KEY]
 
     @property
     def ground_truth_keys(self) -> List[str]:
-        return [GT_SEG_MASK]
+        return [GT_SEG_MASK_KEY]
 
     def compute(self, outputs: Dict, ground_truths: Dict) -> Dict[str, torch.Tensor]:
-        pred_logits = outputs[SEG_MASK_LOGITS]
-        target = ground_truths[GT_SEG_MASK].long()
+        pred_logits = outputs[SEG_MASK_LOGITS_KEY]
+        target = ground_truths[GT_SEG_MASK_KEY].long()
 
         if torch.all(target == self.ignore_index):
             # Produce zero loss when all pixels are ignored.

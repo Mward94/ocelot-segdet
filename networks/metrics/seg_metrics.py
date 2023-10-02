@@ -2,7 +2,7 @@ from typing import List, Tuple, Type, Optional
 
 import torchmetrics
 
-from util.constants import SEG_MASK_INT, GT_SEG_MASK
+from util.constants import SEG_MASK_INT_KEY, GT_SEG_MASK_KEY
 
 
 class SegMetrics:
@@ -99,11 +99,11 @@ class SegMetrics:
 
     @property
     def model_output_keys(self) -> List[str]:
-        return [SEG_MASK_INT]
+        return [SEG_MASK_INT_KEY]
 
     @property
     def ground_truth_keys(self) -> List[str]:
-        return [GT_SEG_MASK]
+        return [GT_SEG_MASK_KEY]
 
     def update(self, outputs, ground_truths):
         """Method used to update the internal confusion matrix for the metrics.
@@ -127,10 +127,10 @@ class SegMetrics:
             (dict): A dictionary of the running computed metrics. Keys = metric name,
                 values = metric
         """
-        pred = outputs[SEG_MASK_INT]
+        pred = outputs[SEG_MASK_INT_KEY]
         for _, _, metric_object in self.all_metrics_objects:
             metric_object.to(pred.device)
-            metric_object(pred, ground_truths[GT_SEG_MASK])
+            metric_object(pred, ground_truths[GT_SEG_MASK_KEY])
         return self.compute()
 
     def compute(self):

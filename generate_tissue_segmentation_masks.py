@@ -16,7 +16,7 @@ from tqdm import tqdm
 from datasets.tissue_dataset import TissueDataset
 from networks.postprocessors.seg_softmax import SegSoftmax
 from networks.segformer import SegFormer
-from util.constants import TISSUE_CLASSES, SEG_MASK_PROB, TISSUE_CLASS_COLOURS
+from util.constants import TISSUE_CLASSES, SEG_MASK_PROB_KEY, TISSUE_CLASS_COLOURS
 from util.gcio import read_json
 from util.helpers import create_directory
 from util.image import (
@@ -239,7 +239,7 @@ def extract_store_softmasked_cancer_mask(complete_prediction, image_id, mask_mpp
                                          output_directory, extract_overlays, rel_image_path,
                                          data_directory):
     # Extract the softmaxed key from model outputs (C, H, W)
-    sm_seg_mask = complete_prediction[SEG_MASK_PROB].detach().cpu().numpy()
+    sm_seg_mask = complete_prediction[SEG_MASK_PROB_KEY].detach().cpu().numpy()
 
     # Extract the softmaxed heatmap for the 'cancer area' class. Giving (H, W)
     cancer_area_hm = sm_seg_mask[TISSUE_CLASSES.index('Cancer')]
@@ -282,7 +282,7 @@ def extract_store_softmasked_cancer_mask(complete_prediction, image_id, mask_mpp
         tissue_image = cv2.resize(tissue_image, (new_w_im, new_h_im), interpolation=cv2.INTER_AREA)
         tissue_image = crop_image(tissue_image, crop_info_im)
         # Take argmax of original mask and find equivalent area
-        am_seg_mask = torch.argmax(complete_prediction[SEG_MASK_PROB], dim=0).detach().cpu().numpy().astype(np.uint8)
+        am_seg_mask = torch.argmax(complete_prediction[SEG_MASK_PROB_KEY], dim=0).detach().cpu().numpy().astype(np.uint8)
         am_seg_mask = cv2.resize(am_seg_mask, (new_w, new_h), interpolation=cv2.INTER_AREA)
         am_seg_mask = crop_image(am_seg_mask, crop_info)
         # Generate RGB mask

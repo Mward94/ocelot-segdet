@@ -17,7 +17,7 @@ from networks.postprocessors.seg_mask_to_point_heatmap import SegMaskToPointHeat
 from networks.postprocessors.seg_softmax import SegSoftmax
 from networks.segformer import SegFormer
 from util.constants import (
-    INPUT_IMAGE_KEY, INPUT_IMAGE_MASK_KEY, SEG_MASK_PROB, DET_POINTS_KEY, DET_INDICES_KEY,
+    INPUT_IMAGE_KEY, INPUT_IMAGE_MASK_KEY, SEG_MASK_PROB_KEY, DET_POINTS_KEY, DET_INDICES_KEY,
     DET_SCORES_KEY)
 from util.helpers import calculate_cropped_size, convert_dimensions_to_mpp, scale_coords_to_mpp
 from util.image import precompute_macenko_params, crop_image
@@ -251,7 +251,7 @@ def tissue_segmentation(
         complete_prediction = postprocess_outputs(complete_prediction, postprocessors)
 
     # Extract and return the integer encoded mask or softmaxed mask
-    tissue_mask = complete_prediction[SEG_MASK_PROB]
+    tissue_mask = complete_prediction[SEG_MASK_PROB_KEY]
     return tissue_mask.numpy()
 
 

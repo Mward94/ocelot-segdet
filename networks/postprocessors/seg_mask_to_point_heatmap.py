@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 import torch
 
 from networks.postprocessors.postprocessor import Postprocessor
-from util.constants import POINT_HEATMAP_KEY, SEG_MASK_LOGITS
+from util.constants import POINT_HEATMAP_KEY, SEG_MASK_LOGITS_KEY
 
 
 class SegMaskToPointHeatmap(Postprocessor):
@@ -16,7 +16,7 @@ class SegMaskToPointHeatmap(Postprocessor):
 
     @property
     def model_output_keys(self) -> List[str]:
-        return [SEG_MASK_LOGITS]
+        return [SEG_MASK_LOGITS_KEY]
 
     def postprocess(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
-        return {**outputs, POINT_HEATMAP_KEY: torch.sigmoid(outputs[SEG_MASK_LOGITS])}
+        return {**outputs, POINT_HEATMAP_KEY: torch.sigmoid(outputs[SEG_MASK_LOGITS_KEY])}

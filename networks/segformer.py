@@ -6,7 +6,8 @@ import torch
 from torch import nn
 from torchvision.transforms import functional as F
 
-from util.constants import INPUT_IMAGE_MASK_KEY, INPUT_IMAGE_KEY, SEG_MASK_LOGITS, SEG_MASK_INT
+from util.constants import (
+    INPUT_IMAGE_MASK_KEY, INPUT_IMAGE_KEY, SEG_MASK_LOGITS_KEY, SEG_MASK_INT_KEY)
 from util.helpers import calculate_cropped_size
 
 
@@ -88,7 +89,7 @@ class SegFormer(nn.Module):
             height, width = calculate_cropped_size(output.shape[-2:], margin)
             output = F.crop(output, top=margin, left=margin, height=height, width=width)
 
-        return {SEG_MASK_LOGITS: output}
+        return {SEG_MASK_LOGITS_KEY: output}
 
     def collate_outputs(
             self, outputs: List[Dict[str, Any]],
@@ -108,7 +109,7 @@ class SegFormer(nn.Module):
         Returns:
             A single reconstructed output
         """
-        _SUPPORTED_KEYS = (SEG_MASK_LOGITS, SEG_MASK_INT)
+        _SUPPORTED_KEYS = (SEG_MASK_LOGITS_KEY, SEG_MASK_INT_KEY)
 
         # Ensure length of outputs and coord_list match
         if len(outputs) != len(coord_list):
@@ -141,11 +142,11 @@ class SegFormer(nn.Module):
                 mask_is_tensor = isinstance(outputs[0][seg_key], torch.Tensor)
 
                 # Set the shape of the mask ((C, H, W) for SEG_MASK, (H, W) for SEG_INT_MASK)
-                if seg_key == SEG_MASK_LOGITS:
+                if seg_key == SEG_MASK_LOGITS_KEY:
                     mask_channels = outputs[0][seg_key].shape[0]
                     mask_shape = (mask_channels, mask_h, mask_w)
                     mask_default_value = 0
-                elif seg_key == SEG_MASK_INT:
+                elif seg_key == SEG_MASK_INT_KEY:
                     mask_shape = (mask_h, mask_w)
                     mask_default_value = background_idx
                 else:
@@ -159,7 +160,7 @@ class SegFormer(nn.Module):
                     seg_mask = mask_default_value * np.ones(mask_shape, dtype=mask_dtype)
 
                 # If a mask of segmentation logits, set them to 1 for the background class
-                if seg_key == SEG_MASK_LOGITS:
+                if seg_key == SEG_MASK_LOGITS_KEY:
                     seg_mask[background_idx] = 1
 
                 collated_output[seg_key] = seg_mask
@@ -169,9 +170,9 @@ class SegFormer(nn.Module):
                     output, coord = outputs[idx], coord_list[idx]
 
                     # Extract the output width and height
-                    if seg_key == SEG_MASK_LOGITS:
+                    if seg_key == SEG_MASK_LOGITS_KEY:
                         output_h, output_w = output[seg_key].shape[1:]
-                    elif seg_key == SEG_MASK_INT:
+                    elif seg_key == SEG_MASK_INT_KEY:
                         output_h, output_w = output[seg_key].shape
                     else:
                         raise ValueError(f'Key {seg_key} not supported to collate into mask.')

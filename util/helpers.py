@@ -187,6 +187,19 @@ def write_pickle_data(filepath: str, data: Any, overwrite: bool = False):
 # ##################################################################################################
 #                                   Geometry Helper Functions
 # ##################################################################################################
+def point_intersects_region(region: Sequence[int], point: Sequence[int]) -> bool:
+    """Given a point, determines if it lies within a region
+
+    Args:
+        region: The region given as [x1, y1, x2, y2]
+        point: The point to test (given as (x, y))
+
+    Returns:
+        True/False whether the point belongs to the region
+    """
+    return region[0] <= point[0] <= region[2] and region[1] <= point[1] <= region[3]
+
+
 def calculate_cropped_size(
         input_size: Tuple[int, int],
         crop_margin: Optional[int],
