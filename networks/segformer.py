@@ -55,6 +55,11 @@ class SegFormer(nn.Module):
         self.train_output_crop_margin = train_output_crop_margin
         self.eval_output_crop_margin = eval_output_crop_margin
 
+    def state_dict(self, *args, **kwargs):
+        """Delegates to `torch.nn.Module.state_dict`.
+        """
+        return self.model.state_dict(*args, **kwargs)
+
     def load_weights(self, weights_path):
         """Loads a set of weights into the model.
         """

@@ -57,7 +57,6 @@ def main():
     args = parse_args()
     ocelot_dir = args.ocelot_directory
     out_dir = args.output_directory
-    extract_overlays = args.extract_overlays
 
     # Ensure directory is valid
     check_valid_ocelot_directory(ocelot_dir)

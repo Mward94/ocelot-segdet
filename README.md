@@ -45,3 +45,8 @@ Below are instructions on the steps to take to train your own models.
      * `model-latest.pth`: The weights from the trained model (at the latest epoch).
      * `train_log.csv`: Information related to model training (loss & metrics).
      * `val_log.csv`: Information related to model evaluation (loss & metrics) ONLY if the validation split exists.
+3. Run the tissue segmentation on the cell images (to generate softmaxed input for use with the cell detection model):
+   * `python generate_tissue_segmentation_masks.py --ocelot-directory /path/to/ocelot --data-directory /path/to/processed/directory --weights-path /path/to/tissue/outputs/model-latest.pth --output-directory /path/to/tissue/cell_inference`  
+   * This script also has an `--extract-overlays` option to generate JPG files illustrating model predictions. This will output 2x sets of images:
+     * The tissue image scaled and cropped to the cell image, with the **ARGMAXED** predictions overlaid. Red = Cancer Area, Blue = Background Area, Black = Unknown
+     * An RGB representation of the Cancer Area heatmap. Whiter (hotter) areas = higher confidence, darker areas = lower confidence

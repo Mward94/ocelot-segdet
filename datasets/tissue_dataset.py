@@ -85,7 +85,7 @@ class TissueDataset(Dataset):
         self.pad_class_name = pad_class_name
 
         # Set up store of annotation metadata
-        self.all_region_data = self._load_from_split()
+        self.all_region_data, self.num_unique_images = self._load_from_split()
 
     def _load_from_split(self):
         """Loads all data given the filepath to a split to load
@@ -104,6 +104,7 @@ class TissueDataset(Dataset):
         for file in metadata_pkl_files:
             with open(file, 'rb') as pkl_file:
                 all_metadata.append(pickle.load(pkl_file))
+        num_unique_images = len(all_metadata)
 
         # Create a datastore by region
         all_region_data = []
@@ -139,7 +140,7 @@ class TissueDataset(Dataset):
                 for _ in range(self.samples_per_region):
                     all_region_data.append(region_data)
 
-        return all_region_data
+        return all_region_data, num_unique_images
 
     def tile_region_data_list(self, region_data_list: List) -> List:
         """Creates tiles from a list of region data, generating more regions as necessary.

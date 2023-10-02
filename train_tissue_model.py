@@ -6,6 +6,7 @@ Training details defined in code (not configurable by CLA):
 - Optimiser: AdamW
 - LR scheduler: Linearly decays LR to 0
 - Loss: Cross Entropy. Ignoring any labelled 'unknown' pixels from loss computation
+- Tiles the validation dataset with 512x512px tiles
 """
 import argparse
 import os
