@@ -36,6 +36,7 @@ from util.torch import seed_all, get_default_device, detection_collate_fn
 from util.training import train_model
 
 # Training related
+DEFAULT_SEED = 42
 DEFAULT_BATCH_SIZE = 4
 DEFAULT_NUM_WORKERS = 4
 DEFAULT_EPOCHS = 250
@@ -76,7 +77,8 @@ def parse_args():
                         required=True)
 
     # Any seeding
-    parser.add_argument('--seed', type=int, help='Seed for RNG.', default=None)
+    parser.add_argument('--seed', type=int, help='Seed for RNG. <0 = no seed',
+                        default=DEFAULT_SEED)
 
     # Data configuration
     parser.add_argument('--mpp', type=float,
@@ -134,7 +136,7 @@ def main():
 
     # Perform any seeding
     seed = args.seed
-    if seed is not None:
+    if seed >= 0:
         seed_all(seed)
 
     # Set up MPP to use
@@ -148,11 +150,11 @@ def main():
     # Set up training dataset (with set of transforms to apply to data)
     train_transforms = [
         RandomAffineCrop(crop_size=512), HorizontalFlip(p=0.5), GaussianBlur(),
-        GaussNoise(), ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05),
+        ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05),
         Downscale()]
     train_dataset = CellDataset(
         args.data_directory, os.path.join(args.split_directory, 'train.txt'),
-        transforms=train_transforms, samples_per_region=2, tile_size=None,
+        transforms=train_transforms, samples_per_region=1, tile_size=None,
         output_crop_margin=args.train_ocm, scale_to_mpp=mpp, gaussian_sigma=GAUSSIAN_GT_SIGMA,
         gaussian_sigma_units=GAUSSIAN_GT_SIGMA_UNITS,
         seg_mask_dir=args.cancer_area_heatmap_directory)

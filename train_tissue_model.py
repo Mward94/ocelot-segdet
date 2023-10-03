@@ -7,6 +7,7 @@ Training details defined in code (not configurable by CLA):
 - LR scheduler: Linearly decays LR to 0
 - Loss: Cross Entropy. Ignoring any labelled 'unknown' pixels from loss computation
 - Tiles the validation dataset with 512x512px tiles
+- 2x samples taken from each training image during an epoch
 """
 import argparse
 import os
@@ -29,6 +30,7 @@ from util.torch import seed_all, get_default_device
 from util.training import train_model
 
 # Training related
+DEFAULT_SEED = 42
 DEFAULT_BATCH_SIZE = 8
 DEFAULT_NUM_WORKERS = 4
 DEFAULT_EPOCHS = 1500
@@ -59,7 +61,8 @@ def parse_args():
                         help='Path to split directory.', default=DEFAULT_SPLIT_DIRECTORY)
 
     # Any seeding
-    parser.add_argument('--seed', type=int, help='Seed for RNG.', default=None)
+    parser.add_argument('--seed', type=int, help='Seed for RNG. <0 = no seed',
+                        default=DEFAULT_SEED)
 
     # Data configuration
     parser.add_argument('--mpp', type=float,
@@ -117,7 +120,7 @@ def main():
 
     # Perform any seeding
     seed = args.seed
-    if seed is not None:
+    if seed >= 0:
         seed_all(seed)
 
     # Set up MPP to use
