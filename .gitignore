@@ -1,0 +1,11 @@
+.idea/*
+
+__pycache__/
+*.pyc
+
+.DS_Store/
+.DS_Store
+
+# Don't commit any model weights or exported containers
+*.pth
+*.tar.gz

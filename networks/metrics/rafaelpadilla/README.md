@@ -1,0 +1,37 @@
+This directory incorporates work from https://github.com/rafaelpadilla/review_object_detection_metrics 
+which is covered by the following copyright and permission notice:
+    
+    The MIT License (MIT)
+    Copyright (c) 2020, y
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy 
+    of this software and associated documentation files (the "Software"), to deal 
+    in the Software without restriction, including without limitation the rights 
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
+    copies of the Software, and to permit persons to whom the Software is 
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all 
+    copies or substantial portions of the Software.
+
+    Aditional clauses:
+    1)  If you publish any results output by this software, include the code 
+        (totally or partially) into other tools, or use the toyexamples or portions 
+        of the text into other pages and works, provide proper attibution with the 
+        information below:
+
+        Padilla R, Passos WL, Dias TLB, Netto SL, da Silva EAB. A Comparative 
+        Analysis of Object Detection Metrics with a Companion Open-Source Toolkit. 
+        Electronics. 2021; 10(3):279. https://doi.org/10.3390/electronics10030279
+
+    2)  If you use this software as part of other libraries or tools, then you are 
+        obliged to provide proper attribution citing its original source: 
+        https://github.com/rafaelpadilla/review_object_detection_metrics
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
+    SOFTWARE.
