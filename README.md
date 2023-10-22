@@ -58,7 +58,7 @@ Below are instructions on the steps to take to train your own models.
      * The tissue image scaled and cropped to the cell image, with the **ARGMAXED** predictions overlaid. Red = Cancer Area, Blue = Background Area, Black = Unknown
      * An RGB representation of the Cancer Area heatmap. Whiter (hotter) areas = higher confidence, darker areas = lower confidence
 4. Train the cell detection model:
-   * `python train_tissue_model.py --data-directory /path/to/processed/directory --cancer-area-heatmap-directory /path/to/tissue/cell_inference --output-directory /path/to/tissue/outputs`
+   * `python train_cell_model.py --data-directory /path/to/processed/directory --cancer-area-heatmap-directory /path/to/tissue/cell_inference --output-directory /path/to/tissue/outputs`
    * A number of parameters can be configured as command line arguments. Defaults match the settings used to train the model for submission to the OCELOT Grand Challenge.
    * The default split file used is the one that contains an internal training and validation set. The `split-directory` argument can be used to swap to the `all_train` split.
    * This will output to the directory the following files:
